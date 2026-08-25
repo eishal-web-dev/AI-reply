@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { auth } from "@/lib/auth";
-import { generateReply } from "@/lib/anthropic";
+import { generateReply } from "@/lib/ai";
 import { connectToDatabase, isDatabaseConfigured } from "@/lib/mongodb";
 import Reply from "@/models/Reply";
 import {

@@ -6,7 +6,7 @@ Live demo: _add your Vercel URL here after deploying_
 
 ## Features
 
-- Paste text or upload a screenshot (Claude vision reads the text for you)
+- Paste text or upload a screenshot (Gemini vision reads the text for you)
 - Actions: write a reply, improve writing, translate, make it shorter
 - Tones: professional, friendly, short, confident, polite, flirty, firm
 - Languages: English, Urdu, Roman Urdu, Arabic, or auto-detect
@@ -18,7 +18,7 @@ Live demo: _add your Vercel URL here after deploying_
 
 ## Tech stack
 
-Next.js 16 (App Router, Turbopack) · TypeScript · Tailwind CSS v4 · shadcn/ui-style components on Radix primitives · Anthropic Claude API · MongoDB + Mongoose · NextAuth v5 (Auth.js) with Google · Zod validation · deployable on Vercel
+Next.js 16 (App Router, Turbopack) · TypeScript · Tailwind CSS v4 · shadcn/ui-style components on Radix primitives · Google Gemini API (`@google/genai`) · MongoDB + Mongoose · NextAuth v5 (Auth.js) with Google · Zod validation · deployable on Vercel
 
 ## Getting started locally
 
@@ -39,7 +39,7 @@ Copy `.env.example` to `.env.local` and fill in:
 
 | Variable | Required for | Notes |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | Real AI replies | From console.anthropic.com. Without it, the app runs in demo mode. |
+| `GEMINI_API_KEY` | Real AI replies | Free key from aistudio.google.com/apikey. Without it, the app runs in demo mode. |
 | `MONGODB_URI` | Persisted reply history, daily quota resets | Without it, the app still works, but history isn't saved and usage tracking is best-effort/in-memory. |
 | `AUTH_SECRET` / `NEXTAUTH_SECRET` | Auth sessions | Generate with `npx auth secret` or `openssl rand -base64 32`. Required in production. |
 | `NEXTAUTH_URL` | Auth callbacks, canonical URLs in metadata/sitemap | e.g. `https://your-app.vercel.app`, no trailing slash. |
@@ -75,7 +75,7 @@ src/
     ui/                         shadcn-style primitives (button, card, select, dialog, ...)
     navbar.tsx, footer.tsx, hero.tsx, pricing.tsx, faq.tsx, ...
   lib/
-    anthropic.ts                Claude system prompt + call + demo-mode fallback
+    ai.ts                        Gemini system prompt + call + demo-mode fallback
     mongodb.ts                  cached DB connection (returns null gracefully if unconfigured)
     auth.ts                     NextAuth config
     usage.ts                    free-tier quota logic
@@ -87,7 +87,7 @@ src/
 
 ## Security notes
 
-- All Claude calls run server-side only (`/api/generate`) — the API key never reaches the browser.
+- All Gemini calls run server-side only (`/api/generate`) — the API key never reaches the browser.
 - Request bodies are validated with Zod (message length capped at 6,000 chars, images capped at 5MB, only JPEG/PNG/WEBP accepted).
 - IP-based rate limiting (20 requests/minute) on the generate endpoint.
 - Message content is never logged to the console; only a short excerpt is stored in a signed-in user's own history, visible only to them.

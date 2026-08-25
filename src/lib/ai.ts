@@ -1,10 +1,15 @@
-import Anthropic from "@anthropic-ai/sdk";
+import { GoogleGenAI } from "@google/genai";
 
-const apiKey = process.env.ANTHROPIC_API_KEY;
+const apiKey = process.env.GEMINI_API_KEY;
 
 export const isDemoMode = !apiKey;
 
-const client = apiKey ? new Anthropic({ apiKey }) : null;
+const client = apiKey ? new GoogleGenAI({ apiKey }) : null;
+
+// Gemini's free tier is generous on the "flash" models — good default for
+// a reply-writing tool. Swap to "gemini-2.5-pro" if you want higher quality
+// at the cost of speed/free-tier headroom.
+const MODEL = "gemini-2.5-flash";
 
 export type ActionType =
   | "reply"
@@ -107,40 +112,34 @@ export async function generateReply(
     return { text: buildDemoReply(params), demo: true };
   }
 
-  const content: Anthropic.MessageParam["content"] = [];
+  const parts: Array<{ text: string } | { inlineData: { data: string; mimeType: string } }> = [];
 
   if (params.imageBase64 && params.imageMediaType) {
-    content.push({
-      type: "image",
-      source: {
-        type: "base64",
-        media_type: params.imageMediaType as
-          | "image/jpeg"
-          | "image/png"
-          | "image/gif"
-          | "image/webp",
+    parts.push({
+      inlineData: {
         data: params.imageBase64,
+        mimeType: params.imageMediaType,
       },
     });
-    content.push({
-      type: "text",
+    parts.push({
       text: params.message
         ? `Here is a screenshot of the message, plus additional context from the user: ${params.message}`
         : "Here is a screenshot of the message that needs a response. Read the text in the image first.",
     });
   } else {
-    content.push({ type: "text", text: params.message });
+    parts.push({ text: params.message });
   }
 
-  const response = await client.messages.create({
-    model: "claude-sonnet-4-6",
-    max_tokens: 1000,
-    system: buildSystemPrompt(params),
-    messages: [{ role: "user", content }],
+  const response = await client.models.generateContent({
+    model: MODEL,
+    contents: [{ role: "user", parts }],
+    config: {
+      systemInstruction: buildSystemPrompt(params),
+      maxOutputTokens: 1000,
+    },
   });
 
-  const textBlock = response.content.find((block) => block.type === "text");
-  const text = textBlock && "text" in textBlock ? textBlock.text.trim() : "";
+  const text = (response.text ?? "").trim();
 
   return { text: stripSurroundingQuotes(text), demo: false };
 }
@@ -170,7 +169,7 @@ function buildDemoReply(params: GenerateParams): string {
   const opener = toneOpeners[params.tone] ?? "Thanks for your message.";
   const trimmedInput = params.message?.trim().slice(0, 140);
 
-  return `[Demo mode — connect an ANTHROPIC_API_KEY to generate real replies]\n\n${opener} ${
+  return `[Demo mode — connect a GEMINI_API_KEY to generate real replies]\n\n${opener} ${
     trimmedInput
       ? `Regarding "${trimmedInput}${
           params.message.length > 140 ? "…" : ""

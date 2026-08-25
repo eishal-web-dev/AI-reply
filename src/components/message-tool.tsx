@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/select";
 import { SignupModal } from "@/components/signup-modal";
 import { ACTIONS, TONES, LANGUAGES, CONTEXTS } from "@/lib/options";
-import type { ActionType } from "@/lib/anthropic";
+import type { ActionType } from "@/lib/ai";
 import {
   ImagePlus,
   X,
