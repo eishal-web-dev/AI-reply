@@ -138,35 +138,57 @@ export async function generateReply(
     maxOutputTokens: 1000,
   };
 
+  const attempt = (model: string) =>
+    client!.models.generateContent({ model, contents, config });
+
   let text: string;
   try {
-    const response = await client.models.generateContent({
-      model: MODEL,
-      contents,
-      config,
-    });
-    text = (response.text ?? "").trim();
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    const looksLikeModelIssue =
-      /not found|not available|no longer|unsupported|invalid model/i.test(message);
-
-    if (!looksLikeModelIssue || MODEL === FALLBACK_MODEL) {
-      throw err;
+    text = await withTransientRetry(() => attempt(MODEL), MODEL);
+  } catch (primaryErr) {
+    if (MODEL === FALLBACK_MODEL) {
+      throw primaryErr;
     }
-
     console.warn(
-      `Gemini model "${MODEL}" failed (${message}); retrying with fallback "${FALLBACK_MODEL}"`
+      `Gemini model "${MODEL}" failed (${errMessage(primaryErr)}); retrying with fallback "${FALLBACK_MODEL}"`
     );
-    const response = await client.models.generateContent({
-      model: FALLBACK_MODEL,
-      contents,
-      config,
-    });
-    text = (response.text ?? "").trim();
+    text = await withTransientRetry(() => attempt(FALLBACK_MODEL), FALLBACK_MODEL);
   }
 
   return { text: stripSurroundingQuotes(text), demo: false };
+}
+
+/**
+ * Retries once, after a short delay, on transient "server busy" style errors
+ * (HTTP 429 rate-limited or 503 unavailable/overloaded) — these are common
+ * on newly-launched or free-tier Gemini models and usually resolve within a
+ * couple seconds. Any other error (bad request, auth, genuinely missing
+ * model) is rethrown immediately without wasting a retry.
+ */
+async function withTransientRetry<T extends { text?: string }>(
+  fn: () => Promise<T>,
+  modelLabel: string
+): Promise<string> {
+  try {
+    const response = await fn();
+    return (response.text ?? "").trim();
+  } catch (err) {
+    if (!isTransientError(err)) throw err;
+    console.warn(`Gemini model "${modelLabel}" busy (${errMessage(err)}); retrying once…`);
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+    const response = await fn();
+    return (response.text ?? "").trim();
+  }
+}
+
+function isTransientError(err: unknown): boolean {
+  const message = errMessage(err);
+  return /"code":\s*(429|503)|UNAVAILABLE|RESOURCE_EXHAUSTED|high demand|overloaded/i.test(
+    message
+  );
+}
+
+function errMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
 }
 
 function stripSurroundingQuotes(text: string): string {

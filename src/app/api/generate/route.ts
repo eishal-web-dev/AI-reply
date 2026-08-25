@@ -101,7 +101,7 @@ export async function POST(req: NextRequest) {
       imageMediaType: data.imageMediaType,
     });
   } catch (err) {
-    console.error("Claude generation failed", err instanceof Error ? err.message : err);
+    console.error("Gemini generation failed", err instanceof Error ? err.message : err);
     return NextResponse.json(
       {
         error:
