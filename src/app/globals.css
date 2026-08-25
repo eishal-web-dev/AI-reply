@@ -1,0 +1,181 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+:root {
+  --background: #15130f;
+  --background-elevated: #1c1913;
+  --background-card: #201c15;
+  --foreground: #f4ede1;
+  --foreground-muted: #a89c88;
+  --accent: #e8823d;
+  --accent-soft: #c96a2e;
+  --accent-foreground: #15130f;
+  --border-subtle: rgba(244, 237, 225, 0.08);
+  --border-strong: rgba(244, 237, 225, 0.16);
+  --ring: #e8823d;
+  --success: #7fae6f;
+  --danger: #d9634f;
+  --radius: 1rem;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-background-elevated: var(--background-elevated);
+  --color-background-card: var(--background-card);
+  --color-foreground: var(--foreground);
+  --color-foreground-muted: var(--foreground-muted);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-border-subtle: var(--border-subtle);
+  --color-border-strong: var(--border-strong);
+  --color-ring: var(--ring);
+  --color-success: var(--success);
+  --color-danger: var(--danger);
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 4px);
+  --radius-sm: calc(var(--radius) - 8px);
+  --font-display: "Fraunces", "Iowan Old Style", "Georgia", serif;
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", monospace;
+}
+
+* {
+  border-color: var(--border-subtle);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+}
+
+.font-display {
+  font-family: var(--font-display), ui-serif, Georgia, serif;
+}
+
+.font-mono {
+  font-family: var(--font-mono), ui-monospace, monospace;
+}
+
+/* Glass surface used for cards / nav */
+.glass {
+  background: linear-gradient(
+    180deg,
+    rgba(244, 237, 225, 0.05),
+    rgba(244, 237, 225, 0.02)
+  );
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--border-subtle);
+}
+
+/* Warm ember glow used behind the hero tool */
+.ember-glow {
+  background: radial-gradient(
+      45% 45% at 20% 15%,
+      rgba(232, 130, 61, 0.22),
+      transparent 60%
+    ),
+    radial-gradient(
+      35% 35% at 85% 30%,
+      rgba(201, 106, 46, 0.14),
+      transparent 60%
+    );
+}
+
+.text-gradient {
+  background: linear-gradient(90deg, var(--foreground) 0%, var(--accent) 120%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Signature: the three-dot "typing" mark used as a structural device
+   (mirrors the moment right before a reply lands). */
+.typing-mark {
+  display: inline-flex;
+  gap: 3px;
+  align-items: center;
+}
+.typing-mark span {
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--accent);
+  opacity: 0.4;
+  animation: typing-pulse 1.4s ease-in-out infinite;
+}
+.typing-mark span:nth-child(2) {
+  animation-delay: 0.18s;
+}
+.typing-mark span:nth-child(3) {
+  animation-delay: 0.36s;
+}
+@keyframes typing-pulse {
+  0%,
+  60%,
+  100% {
+    opacity: 0.35;
+    transform: translateY(0);
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(-2px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .typing-mark span {
+    animation: none;
+    opacity: 0.8;
+  }
+  * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+::selection {
+  background: var(--accent);
+  color: var(--accent-foreground);
+}
+
+:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+}
+::-webkit-scrollbar-track {
+  background: var(--background);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 999px;
+}
+
+@keyframes accordion-down {
+  from {
+    height: 0;
+  }
+  to {
+    height: var(--radix-accordion-content-height);
+  }
+}
+@keyframes accordion-up {
+  from {
+    height: var(--radix-accordion-content-height);
+  }
+  to {
+    height: 0;
+  }
+}
+.animate-accordion-down {
+  animation: accordion-down 0.2s ease-out;
+}
+.animate-accordion-up {
+  animation: accordion-up 0.2s ease-out;
+}
