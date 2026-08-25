@@ -6,10 +6,12 @@ export const isDemoMode = !apiKey;
 
 const client = apiKey ? new GoogleGenAI({ apiKey }) : null;
 
-// Gemini's free tier is generous on the "flash" models — good default for
-// a reply-writing tool. Swap to "gemini-2.5-pro" if you want higher quality
-// at the cost of speed/free-tier headroom.
-const MODEL = "gemini-2.5-flash";
+// Gemini has been retiring 2.5-generation models faster than their published
+// shutdown dates (some users saw "model no longer available" errors months
+// early), so this defaults to the current 3.x flash model and is overridable
+// via GEMINI_MODEL without a code change if Google moves the goalposts again.
+const MODEL = process.env.GEMINI_MODEL || "gemini-3.7-flash";
+const FALLBACK_MODEL = process.env.GEMINI_FALLBACK_MODEL || "gemini-2.5-flash";
 
 export type ActionType =
   | "reply"
@@ -130,16 +132,39 @@ export async function generateReply(
     parts.push({ text: params.message });
   }
 
-  const response = await client.models.generateContent({
-    model: MODEL,
-    contents: [{ role: "user", parts }],
-    config: {
-      systemInstruction: buildSystemPrompt(params),
-      maxOutputTokens: 1000,
-    },
-  });
+  const contents = [{ role: "user" as const, parts }];
+  const config = {
+    systemInstruction: buildSystemPrompt(params),
+    maxOutputTokens: 1000,
+  };
 
-  const text = (response.text ?? "").trim();
+  let text: string;
+  try {
+    const response = await client.models.generateContent({
+      model: MODEL,
+      contents,
+      config,
+    });
+    text = (response.text ?? "").trim();
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    const looksLikeModelIssue =
+      /not found|not available|no longer|unsupported|invalid model/i.test(message);
+
+    if (!looksLikeModelIssue || MODEL === FALLBACK_MODEL) {
+      throw err;
+    }
+
+    console.warn(
+      `Gemini model "${MODEL}" failed (${message}); retrying with fallback "${FALLBACK_MODEL}"`
+    );
+    const response = await client.models.generateContent({
+      model: FALLBACK_MODEL,
+      contents,
+      config,
+    });
+    text = (response.text ?? "").trim();
+  }
 
   return { text: stripSurroundingQuotes(text), demo: false };
 }
