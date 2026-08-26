@@ -1,11 +1,9 @@
 "use client";
 
-import { useState } from "react";
 import { useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Check, Loader2 } from "lucide-react";
-import { toast } from "sonner";
+import { Check } from "lucide-react";
 
 const freeFeatures = [
   "3 replies per day",
@@ -24,26 +22,14 @@ const proFeatures = [
 
 export function Pricing() {
   const { data: session, status } = useSession();
-  const [loading, setLoading] = useState(false);
   const plan = (session?.user as { plan?: string } | undefined)?.plan || "free";
 
-  async function startCheckout() {
+  function startCheckout() {
     if (status !== "authenticated") {
-      window.location.assign("/login?callbackUrl=%2F%23pricing");
+      window.location.assign("/login?callbackUrl=%2Fpay");
       return;
     }
-
-    setLoading(true);
-    try {
-      const res = await fetch("/api/billing/checkout", { method: "POST" });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Could not start checkout.");
-      if (!data.url) throw new Error("Stripe did not return a checkout URL.");
-      window.location.assign(data.url);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not start checkout.");
-      setLoading(false);
-    }
+    window.location.assign("/pay");
   }
 
   return (
@@ -81,9 +67,10 @@ export function Pricing() {
           <h3 className="font-display text-xl font-medium">Pro</h3>
           <p className="mt-1 text-sm text-foreground-muted">For power users and businesses</p>
           <p className="font-display mt-6 text-4xl font-medium">
-            $3.99
+            PKR 499
             <span className="text-base font-normal text-foreground-muted"> / month</span>
           </p>
+          <p className="mt-1 text-xs text-foreground-muted">International checkout will be added automatically when available.</p>
           <ul className="mt-6 space-y-3 text-sm">
             {proFeatures.map((f) => (
               <li key={f} className="flex items-center gap-2">
@@ -91,17 +78,11 @@ export function Pricing() {
               </li>
             ))}
           </ul>
-          <Button className="mt-8 w-full" onClick={startCheckout} disabled={loading || plan === "pro"}>
-            {loading ? (
-              <><Loader2 className="h-4 w-4 animate-spin" /> Opening secure checkout…</>
-            ) : plan === "pro" ? (
-              "You have SayIt Pro"
-            ) : (
-              "Upgrade to Pro"
-            )}
+          <Button className="mt-8 w-full" onClick={startCheckout} disabled={plan === "pro"}>
+            {plan === "pro" ? "You have SayIt Pro" : "Upgrade with Ashes Pay"}
           </Button>
           <p className="mt-3 text-center text-xs text-foreground-muted">
-            Secure checkout by Stripe. Cancel anytime.
+            Local payment by Raast / bank transfer. No Stripe account required.
           </p>
         </div>
       </div>
