@@ -7,6 +7,9 @@ export interface IUser {
   image?: string;
   plan: "free" | "pro";
   googleId?: string;
+  stripeCustomerId?: string;
+  stripeSubscriptionId?: string;
+  stripeSubscriptionStatus?: string;
   dailyUsageCount: number;
   dailyUsageDate: string; // YYYY-MM-DD, resets the counter
   createdAt: Date;
@@ -20,6 +23,9 @@ const UserSchema = new Schema<IUser>(
     image: { type: String },
     plan: { type: String, enum: ["free", "pro"], default: "free" },
     googleId: { type: String },
+    stripeCustomerId: { type: String, index: true, sparse: true },
+    stripeSubscriptionId: { type: String, index: true, sparse: true },
+    stripeSubscriptionStatus: { type: String },
     dailyUsageCount: { type: Number, default: 0 },
     dailyUsageDate: { type: String, default: "" },
   },
