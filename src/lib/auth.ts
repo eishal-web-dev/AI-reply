@@ -1,29 +1,64 @@
 import NextAuth from "next-auth";
-import Google from "next-auth/providers/google";
+import Credentials from "next-auth/providers/credentials";
 import { connectToDatabase, isDatabaseConfigured } from "@/lib/mongodb";
 import User from "@/models/User";
 
 if (!process.env.AUTH_SECRET && !process.env.NEXTAUTH_SECRET) {
   console.warn(
-    "AUTH_SECRET/NEXTAUTH_SECRET is not set — NextAuth will fail on every /api/auth/* request in production. Set one in your deployment's environment variables (generate with `npx auth secret`)."
+    "AUTH_SECRET/NEXTAUTH_SECRET is not set — NextAuth will fail on every /api/auth/* request in production."
   );
 }
 
+const ASHES_SSO_CONSUME = "https://www.ashesstack.cloud/api/account-google?sso=consume";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
-  // NextAuth normally auto-detects AUTH_SECRET, but being explicit here
-  // means a missing/misnamed secret fails loudly in logs (see the
-  // isSecretConfigured warning below) rather than as an opaque 500 on
-  // every /api/auth/* route.
   secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET,
-  // Vercel deployments (and any host behind a reverse proxy) need this so
-  // NextAuth trusts the forwarded host/protocol headers instead of
-  // rejecting the request.
   trustHost: true,
   providers: [
-    Google({
-      clientId: process.env.GOOGLE_CLIENT_ID,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+    Credentials({
+      id: "ashes",
+      name: "Ashes",
+      credentials: {
+        code: { label: "Ashes SSO code", type: "text" },
+      },
+      async authorize(credentials) {
+        const code = String(credentials?.code || "").trim();
+        if (!code) return null;
+
+        const response = await fetch(ASHES_SSO_CONSUME, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ code }),
+          cache: "no-store",
+        });
+        if (!response.ok) return null;
+
+        const ashesUser = await response.json();
+        if (!ashesUser?.email) return null;
+
+        if (isDatabaseConfigured()) {
+          await connectToDatabase();
+          const dbUser = await User.findOneAndUpdate(
+            { email: String(ashesUser.email).toLowerCase() },
+            {
+              $setOnInsert: { email: String(ashesUser.email).toLowerCase(), plan: "free" },
+              $set: { name: ashesUser.name || "" },
+            },
+            { upsert: true, new: true }
+          );
+          return {
+            id: dbUser._id.toString(),
+            email: dbUser.email,
+            name: dbUser.name || ashesUser.name || "",
+          };
+        }
+
+        return {
+          id: String(ashesUser.id || ashesUser.email),
+          email: String(ashesUser.email),
+          name: String(ashesUser.name || ""),
+        };
+      },
     }),
   ],
   session: { strategy: "jwt" },
@@ -39,7 +74,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           { email: user.email },
           {
             $setOnInsert: { email: user.email, plan: "free" },
-            $set: { name: user.name, image: user.image },
+            $set: { name: user.name },
           },
           { upsert: true, new: true }
         );
