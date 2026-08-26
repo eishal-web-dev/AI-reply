@@ -1,12 +1,14 @@
 "use client";
 
-import { signIn } from "next-auth/react";
+import { useState } from "react";
+import { useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Check } from "lucide-react";
+import { Check, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
 const freeFeatures = [
-  "5 replies per day",
+  "3 replies per day",
   "All basic tones",
   "English, Urdu, and Roman Urdu",
   "Text input",
@@ -21,12 +23,33 @@ const proFeatures = [
 ];
 
 export function Pricing() {
+  const { data: session, status } = useSession();
+  const [loading, setLoading] = useState(false);
+  const plan = (session?.user as { plan?: string } | undefined)?.plan || "free";
+
+  async function startCheckout() {
+    if (status !== "authenticated") {
+      window.location.assign("/login?callbackUrl=%2F%23pricing");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await fetch("/api/billing/checkout", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Could not start checkout.");
+      if (!data.url) throw new Error("Stripe did not return a checkout URL.");
+      window.location.assign(data.url);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not start checkout.");
+      setLoading(false);
+    }
+  }
+
   return (
     <section id="pricing" className="mx-auto max-w-6xl px-6 py-20">
       <div className="mb-12 text-center">
-        <p className="font-mono text-xs uppercase tracking-widest text-accent">
-          Pricing
-        </p>
+        <p className="font-mono text-xs uppercase tracking-widest text-accent">Pricing</p>
         <h2 className="font-display mt-3 text-3xl font-medium sm:text-4xl">
           Start free. Upgrade when you need to.
         </h2>
@@ -35,9 +58,7 @@ export function Pricing() {
       <div className="grid gap-6 sm:grid-cols-2">
         <div className="rounded-3xl border border-border-subtle p-8">
           <h3 className="font-display text-xl font-medium">Free</h3>
-          <p className="mt-1 text-sm text-foreground-muted">
-            For everyday replies
-          </p>
+          <p className="mt-1 text-sm text-foreground-muted">For everyday replies</p>
           <p className="font-display mt-6 text-4xl font-medium">$0</p>
           <ul className="mt-6 space-y-3 text-sm">
             {freeFeatures.map((f) => (
@@ -49,26 +70,20 @@ export function Pricing() {
           <Button
             variant="outline"
             className="mt-8 w-full"
-            onClick={() => signIn("google")}
+            onClick={() => window.location.assign(status === "authenticated" ? "/dashboard" : "/login")}
           >
-            Get started free
+            {status === "authenticated" ? "Open dashboard" : "Get started free"}
           </Button>
         </div>
 
         <div className="glass relative rounded-3xl p-8">
-          <Badge className="absolute right-8 top-8">Coming soon</Badge>
+          <Badge className="absolute right-8 top-8">Best value</Badge>
           <h3 className="font-display text-xl font-medium">Pro</h3>
-          <p className="mt-1 text-sm text-foreground-muted">
-            For power users and businesses
-          </p>
+          <p className="mt-1 text-sm text-foreground-muted">For power users and businesses</p>
           <p className="font-display mt-6 text-4xl font-medium">
             $3.99
-            <span className="text-base font-normal text-foreground-muted">
-              {" "}
-              / month
-            </span>
+            <span className="text-base font-normal text-foreground-muted"> / month</span>
           </p>
-          <p className="text-xs text-foreground-muted">or PKR 499/month</p>
           <ul className="mt-6 space-y-3 text-sm">
             {proFeatures.map((f) => (
               <li key={f} className="flex items-center gap-2">
@@ -76,9 +91,18 @@ export function Pricing() {
               </li>
             ))}
           </ul>
-          <Button disabled className="mt-8 w-full">
-            Notify me at launch
+          <Button className="mt-8 w-full" onClick={startCheckout} disabled={loading || plan === "pro"}>
+            {loading ? (
+              <><Loader2 className="h-4 w-4 animate-spin" /> Opening secure checkout…</>
+            ) : plan === "pro" ? (
+              "You have SayIt Pro"
+            ) : (
+              "Upgrade to Pro"
+            )}
           </Button>
+          <p className="mt-3 text-center text-xs text-foreground-muted">
+            Secure checkout by Stripe. Cancel anytime.
+          </p>
         </div>
       </div>
     </section>
