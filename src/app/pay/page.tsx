@@ -9,9 +9,11 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 
+const PAYMENT_NUMBER = "03305315817";
+
 export default function PayPage() {
   const { data: session, status } = useSession();
-  const [method, setMethod] = useState("raast");
+  const [method, setMethod] = useState("easypaisa");
   const [reference, setReference] = useState("");
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -77,8 +79,12 @@ export default function PayPage() {
 
         <div className="mt-7 rounded-2xl border border-border-subtle p-5">
           <p className="text-sm font-medium">Pay to Ashes Stack</p>
-          <p className="mt-2 text-sm text-foreground-muted">Use Raast, bank transfer, Easypaisa or JazzCash. Your payment destination will be shown here once the local receiving account is configured.</p>
-          <p className="mt-3 text-xs text-foreground-muted">For now, if you already received payment instructions from Ashes, complete the transfer and submit the transaction/reference ID below.</p>
+          <p className="mt-2 text-sm text-foreground-muted">Send PKR 499 using Easypaisa or JazzCash to the number below.</p>
+          <div className="mt-4 rounded-2xl border border-border-subtle bg-background/40 p-4 text-center">
+            <p className="text-xs uppercase tracking-widest text-foreground-muted">Easypaisa / JazzCash</p>
+            <p className="mt-2 font-mono text-2xl font-semibold tracking-wide">{PAYMENT_NUMBER}</p>
+          </div>
+          <p className="mt-3 text-xs text-foreground-muted">After payment, enter the transaction/reference ID below. Your Pro access will activate after verification.</p>
         </div>
 
         <div className="mt-6">
@@ -86,17 +92,15 @@ export default function PayPage() {
           <Select value={method} onValueChange={setMethod}>
             <SelectTrigger className="mt-2"><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="raast">Raast / Bank transfer</SelectItem>
               <SelectItem value="easypaisa">Easypaisa</SelectItem>
               <SelectItem value="jazzcash">JazzCash</SelectItem>
-              <SelectItem value="other">Other</SelectItem>
             </SelectContent>
           </Select>
         </div>
 
         <div className="mt-5">
           <Label htmlFor="reference">Transaction / reference ID</Label>
-          <Input id="reference" value={reference} onChange={(e) => setReference(e.target.value)} placeholder="e.g. RFT123456789" className="mt-2" />
+          <Input id="reference" value={reference} onChange={(e) => setReference(e.target.value)} placeholder="Enter the payment transaction ID" className="mt-2" />
         </div>
 
         <div className="mt-5 rounded-2xl border border-border-subtle p-4 text-sm text-foreground-muted">
