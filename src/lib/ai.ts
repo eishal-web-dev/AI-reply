@@ -6,12 +6,11 @@ export const isDemoMode = !apiKey;
 
 const client = apiKey ? new GoogleGenAI({ apiKey }) : null;
 
-// Gemini has been retiring 2.5-generation models faster than their published
-// shutdown dates (some users saw "model no longer available" errors months
-// early), so this defaults to the current 3.x flash model and is overridable
-// via GEMINI_MODEL without a code change if Google moves the goalposts again.
+// Keep these overridable from Vercel, but default to models that are currently
+// available to this project. The previous fallback (2.5 Flash) is retired for
+// new users, which caused every busy primary request to waste time and fail.
 const MODEL = process.env.GEMINI_MODEL || "gemini-3.7-flash";
-const FALLBACK_MODEL = process.env.GEMINI_FALLBACK_MODEL || "gemini-2.5-flash";
+const FALLBACK_MODEL = process.env.GEMINI_FALLBACK_MODEL || "gemini-3.6-flash";
 
 export type ActionType =
   | "reply"
@@ -135,7 +134,7 @@ export async function generateReply(
   const contents = [{ role: "user" as const, parts }];
   const config = {
     systemInstruction: buildSystemPrompt(params),
-    maxOutputTokens: 1000,
+    maxOutputTokens: 600,
   };
 
   const attempt = (model: string) =>
@@ -143,28 +142,21 @@ export async function generateReply(
 
   let text: string;
   try {
-    text = await withTransientRetry(() => attempt(MODEL), MODEL);
+    text = await withFastRetry(() => attempt(MODEL), MODEL);
   } catch (primaryErr) {
-    if (MODEL === FALLBACK_MODEL) {
-      throw primaryErr;
-    }
+    if (MODEL === FALLBACK_MODEL) throw primaryErr;
     console.warn(
-      `Gemini model "${MODEL}" failed (${errMessage(primaryErr)}); retrying with fallback "${FALLBACK_MODEL}"`
+      `Gemini model "${MODEL}" failed (${errMessage(primaryErr)}); trying fallback "${FALLBACK_MODEL}" immediately`
     );
-    text = await withTransientRetry(() => attempt(FALLBACK_MODEL), FALLBACK_MODEL);
+    text = await withFastRetry(() => attempt(FALLBACK_MODEL), FALLBACK_MODEL);
   }
 
   return { text: stripSurroundingQuotes(text), demo: false };
 }
 
-/**
- * Retries once, after a short delay, on transient "server busy" style errors
- * (HTTP 429 rate-limited or 503 unavailable/overloaded) — these are common
- * on newly-launched or free-tier Gemini models and usually resolve within a
- * couple seconds. Any other error (bad request, auth, genuinely missing
- * model) is rethrown immediately without wasting a retry.
- */
-async function withTransientRetry<T extends { text?: string }>(
+// Fail over quickly. A busy model should not leave the UI spinning for a minute.
+// Retry once only for transient 429/503 errors and wait just 250ms.
+async function withFastRetry<T extends { text?: string }>(
   fn: () => Promise<T>,
   modelLabel: string
 ): Promise<string> {
@@ -173,8 +165,8 @@ async function withTransientRetry<T extends { text?: string }>(
     return (response.text ?? "").trim();
   } catch (err) {
     if (!isTransientError(err)) throw err;
-    console.warn(`Gemini model "${modelLabel}" busy (${errMessage(err)}); retrying once…`);
-    await new Promise((resolve) => setTimeout(resolve, 1200));
+    console.warn(`Gemini model "${modelLabel}" busy (${errMessage(err)}); retrying once quickly…`);
+    await new Promise((resolve) => setTimeout(resolve, 250));
     const response = await fn();
     return (response.text ?? "").trim();
   }
@@ -182,9 +174,7 @@ async function withTransientRetry<T extends { text?: string }>(
 
 function isTransientError(err: unknown): boolean {
   const message = errMessage(err);
-  return /"code":\s*(429|503)|UNAVAILABLE|RESOURCE_EXHAUSTED|high demand|overloaded/i.test(
-    message
-  );
+  return /"code":\s*(429|503)|UNAVAILABLE|RESOURCE_EXHAUSTED|high demand|overloaded/i.test(message);
 }
 
 function errMessage(err: unknown): string {
@@ -218,9 +208,7 @@ function buildDemoReply(params: GenerateParams): string {
 
   return `[Demo mode — connect a GEMINI_API_KEY to generate real replies]\n\n${opener} ${
     trimmedInput
-      ? `Regarding "${trimmedInput}${
-          params.message.length > 140 ? "…" : ""
-        }" — this is a sample response so you can preview the SayIt interface.`
+      ? `Regarding "${trimmedInput}${params.message.length > 140 ? "…" : ""}" — this is a sample response so you can preview the SayIt interface.`
       : "This is a sample response so you can preview the SayIt interface."
   }`;
 }
