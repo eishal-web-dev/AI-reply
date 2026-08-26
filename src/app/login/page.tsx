@@ -25,7 +25,7 @@ function LoginCard() {
         Say<span className="text-accent">It</span>
       </Link>
       <p className="mt-2 text-sm text-foreground-muted">
-        Use your Ashes account to save reply history and get 5 free replies every day.
+        Use your Ashes account to save reply history and get 3 free replies every day.
       </p>
       <Button className="mt-8 w-full" size="lg" onClick={continueWithAshes}>
         Continue with Ashes
