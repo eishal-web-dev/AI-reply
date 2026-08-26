@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { signIn } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 
-export default function AshesCallbackPage() {
+function AshesCallbackInner() {
   const params = useSearchParams();
   const [message, setMessage] = useState("Signing you into SayIt…");
 
@@ -31,13 +31,19 @@ export default function AshesCallbackPage() {
     })();
   }, [params]);
 
+  return <p className="mt-4 text-sm text-foreground-muted">{message}</p>;
+}
+
+export default function AshesCallbackPage() {
   return (
     <main className="flex min-h-screen items-center justify-center px-6">
       <div className="glass w-full max-w-sm rounded-3xl p-8 text-center">
         <div className="font-display text-2xl font-semibold tracking-tight">
           Say<span className="text-accent">It</span>
         </div>
-        <p className="mt-4 text-sm text-foreground-muted">{message}</p>
+        <Suspense fallback={<p className="mt-4 text-sm text-foreground-muted">Signing you into SayIt…</p>}>
+          <AshesCallbackInner />
+        </Suspense>
       </div>
     </main>
   );
