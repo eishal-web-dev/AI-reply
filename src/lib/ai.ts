@@ -6,11 +6,9 @@ export const isDemoMode = !apiKey;
 
 const client = apiKey ? new GoogleGenAI({ apiKey }) : null;
 
-// Keep these overridable from Vercel, but default to models that are currently
-// available to this project. The previous fallback (2.5 Flash) is retired for
-// new users, which caused every busy primary request to waste time and fail.
 const MODEL = process.env.GEMINI_MODEL || "gemini-3.7-flash";
 const FALLBACK_MODEL = process.env.GEMINI_FALLBACK_MODEL || "gemini-3.6-flash";
+const MODEL_TIMEOUT_MS = 8000;
 
 export type ActionType =
   | "reply"
@@ -106,9 +104,7 @@ export interface GenerateResult {
   demo: boolean;
 }
 
-export async function generateReply(
-  params: GenerateParams
-): Promise<GenerateResult> {
+export async function generateReply(params: GenerateParams): Promise<GenerateResult> {
   if (!client) {
     return { text: buildDemoReply(params), demo: true };
   }
@@ -134,47 +130,47 @@ export async function generateReply(
   const contents = [{ role: "user" as const, parts }];
   const config = {
     systemInstruction: buildSystemPrompt(params),
-    maxOutputTokens: 600,
+    maxOutputTokens: 450,
   };
 
   const attempt = (model: string) =>
-    client!.models.generateContent({ model, contents, config });
+    withDeadline(
+      client!.models.generateContent({ model, contents, config }),
+      MODEL_TIMEOUT_MS,
+      model
+    );
 
   let text: string;
   try {
-    text = await withFastRetry(() => attempt(MODEL), MODEL);
+    const response = await attempt(MODEL);
+    text = (response.text ?? "").trim();
   } catch (primaryErr) {
     if (MODEL === FALLBACK_MODEL) throw primaryErr;
     console.warn(
-      `Gemini model "${MODEL}" failed (${errMessage(primaryErr)}); trying fallback "${FALLBACK_MODEL}" immediately`
+      `Gemini model "${MODEL}" failed (${errMessage(primaryErr)}); trying fallback "${FALLBACK_MODEL}"`
     );
-    text = await withFastRetry(() => attempt(FALLBACK_MODEL), FALLBACK_MODEL);
+    const response = await attempt(FALLBACK_MODEL);
+    text = (response.text ?? "").trim();
   }
 
+  if (!text) throw new Error("Gemini returned an empty response");
   return { text: stripSurroundingQuotes(text), demo: false };
 }
 
-// Fail over quickly. A busy model should not leave the UI spinning for a minute.
-// Retry once only for transient 429/503 errors and wait just 250ms.
-async function withFastRetry<T extends { text?: string }>(
-  fn: () => Promise<T>,
-  modelLabel: string
-): Promise<string> {
-  try {
-    const response = await fn();
-    return (response.text ?? "").trim();
-  } catch (err) {
-    if (!isTransientError(err)) throw err;
-    console.warn(`Gemini model "${modelLabel}" busy (${errMessage(err)}); retrying once quickly…`);
-    await new Promise((resolve) => setTimeout(resolve, 250));
-    const response = await fn();
-    return (response.text ?? "").trim();
-  }
-}
+async function withDeadline<T>(promise: Promise<T>, timeoutMs: number, modelLabel: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(
+      () => reject(new Error(`Gemini model ${modelLabel} timed out after ${timeoutMs}ms`)),
+      timeoutMs
+    );
+  });
 
-function isTransientError(err: unknown): boolean {
-  const message = errMessage(err);
-  return /"code":\s*(429|503)|UNAVAILABLE|RESOURCE_EXHAUSTED|high demand|overloaded/i.test(message);
+  try {
+    return await Promise.race([promise, timeout]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 }
 
 function errMessage(err: unknown): string {
