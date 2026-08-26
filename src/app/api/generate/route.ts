@@ -20,9 +20,8 @@ import {
 export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {
-  // --- Rate limit by IP (protects against abuse regardless of auth state) ---
   const ip = getClientIp(req.headers);
-  const rl = checkRateLimit(`generate:${ip}`, 20, 60_000); // 20 req/min/IP
+  const rl = checkRateLimit(`generate:${ip}`, 20, 60_000);
   if (!rl.success) {
     return NextResponse.json(
       { error: "Too many requests. Please slow down and try again shortly." },
@@ -30,7 +29,6 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // --- Parse & validate body ---
   let body: unknown;
   try {
     body = await req.json();
@@ -57,7 +55,6 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // --- Auth state & quota enforcement ---
   const session = await auth();
   const userId = (session?.user as { id?: string } | undefined)?.id;
 
@@ -67,7 +64,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           error:
-            "You've used today's 5 free replies. Come back tomorrow, or upgrade to Pro for unlimited replies.",
+            "You've used today's 3 free replies. Come back tomorrow, or upgrade to Pro for unlimited replies.",
           code: "DAILY_LIMIT_REACHED",
         },
         { status: 403 }
@@ -80,7 +77,7 @@ export async function POST(req: NextRequest) {
     if (used >= ANON_FREE_LIMIT) {
       return NextResponse.json(
         {
-          error: "You've used your 3 free replies. Sign up to keep going — it's free.",
+          error: "You've used your 3 free replies. Sign in with Ashes to get 3 free replies every day.",
           code: "SIGNUP_REQUIRED",
         },
         { status: 403 }
@@ -88,7 +85,6 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // --- Generate ---
   let result;
   try {
     result = await generateReply({
@@ -116,7 +112,6 @@ export async function POST(req: NextRequest) {
     demo: result.demo,
   });
 
-  // --- Post-generation bookkeeping (never log message content) ---
   if (userId) {
     await incrementUserDailyUsage(userId);
     if (isDatabaseConfigured()) {
