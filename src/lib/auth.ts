@@ -71,9 +71,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       try {
         await connectToDatabase();
         await User.findOneAndUpdate(
-          { email: user.email },
+          { email: user.email.toLowerCase() },
           {
-            $setOnInsert: { email: user.email, plan: "free" },
+            $setOnInsert: { email: user.email.toLowerCase(), plan: "free" },
             $set: { name: user.name },
           },
           { upsert: true, new: true }
@@ -83,11 +83,17 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       }
       return true;
     },
-    async jwt({ token }) {
+    async jwt({ token, user }) {
+      // Preserve the identity returned by the Ashes Credentials provider.
+      // Without this, a successful SSO session could still look anonymous to
+      // /api/usage and /api/generate because session.user.id was blank.
+      if (user?.id) token.userId = user.id;
+      if (user?.email) token.email = user.email;
+
       if (!isDatabaseConfigured() || !token.email) return token;
       try {
         await connectToDatabase();
-        const dbUser = await User.findOne({ email: token.email });
+        const dbUser = await User.findOne({ email: token.email.toLowerCase() });
         if (dbUser) {
           token.userId = dbUser._id.toString();
           token.plan = dbUser.plan;
@@ -100,7 +106,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     async session({ session, token }) {
       if (session.user) {
         (session.user as typeof session.user & { id?: string; plan?: string }).id =
-          (token.userId as string | undefined) ?? "";
+          (token.userId as string | undefined) || token.sub || "";
         (session.user as typeof session.user & { id?: string; plan?: string }).plan =
           (token.plan as string | undefined) ?? "free";
       }
